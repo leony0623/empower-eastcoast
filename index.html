@@ -510,6 +510,42 @@ body,.btn,.tbtn,.pill button,.sq,.npcl,.pav,.toast{font-weight:500}
 /* legible hand-lettered numerals (Patrick Hand has one weight; avoid faux-bold smearing) */
 .lbl .no,.idx .n,.idx .bn,.pt .pn,.lchip b,.cert-st b,#tClock,.puz,.player .nm small,.st-o,.win{font-weight:400!important;font-synthesis:none;letter-spacing:.04em;font-variant-numeric:tabular-nums}
 .lbl .no{font-size:17px!important;font-style:normal!important}
+/* ---- phone layout: compact HUD, docked player card, single-line travel bar */
+.travel{width:max-content}
+.travel #trTxt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.travel button{white-space:nowrap;flex:none}
+.player .pex{display:none}
+.player .ft{flex-wrap:wrap;row-gap:4px}
+.player .ft>*{white-space:nowrap}
+@media (max-width:640px){
+  .tl{gap:6px!important}
+  .brand{padding:7px 12px!important}.brand .wm{font-size:19px!important}
+  .tgroup{padding:3px!important}.tbtn{min-width:32px!important;padding:5px 6px!important}
+  .pill button{padding:6px 9px!important;font-size:13px!important}.sq{padding:7px 9px!important;font-size:13px!important}
+  .lbl{font-size:12px}
+  body.gm #lbls .pin{display:none!important}
+  .travel{left:10px!important;right:10px;transform:none!important;width:auto;max-width:none;padding:6px 6px 6px 12px!important;gap:6px;font-size:13px;border-radius:12px!important}
+  .travel button{padding:6px 10px!important;font-size:13px}
+  .player{top:auto!important;bottom:calc(env(safe-area-inset-bottom,0px) + 10px)!important;left:10px!important;right:auto!important;
+    width:auto!important;max-width:calc(100% - 20px);padding:6px 38px 6px 8px!important;gap:2px 8px!important;grid-template-columns:auto minmax(0,1fr)!important}
+  .player .av{grid-row:auto!important;width:36px!important;height:36px!important}
+  .player .av .c3dw{width:36px!important;height:36px!important}
+  .player .nm{font-size:14px}.player .tt{font-size:11.5px}
+  .player:not(.open) .puz,.player:not(.open) .bar,.player:not(.open) .bag,.player:not(.open) .ft{display:none!important}
+  .player.open{width:min(340px,calc(100% - 20px))!important}
+  .player.open .puz,.player.open .bar,.player.open .bag,.player.open .ft{grid-column:1/-1!important}
+  .player .pex{display:grid;place-items:center;position:absolute;top:6px;right:6px;width:28px;height:28px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);font-size:13px;padding:0}
+  body:has(#travel:not([hidden])) .player{bottom:calc(env(safe-area-inset-bottom,0px) + 64px)!important}
+  .toast{bottom:calc(env(safe-area-inset-bottom,0px) + 120px)!important}
+}
+.travel{color:var(--ink)!important}
+.travel #trTxt{flex:1 1 auto}
+.travel button{background:var(--accent)!important;color:#fff!important}
+@media (max-width:640px){
+  body:has(#travel:not([hidden])) .player{bottom:calc(env(safe-area-inset-bottom,0px) + 70px)!important}
+  .toast{top:calc(env(safe-area-inset-top,0px) + 150px)!important;bottom:auto!important}
+  .player.open .puz{display:flex!important;flex-wrap:wrap;gap:3px}
+}
 </style>
 <div id="boot">東海岸的島嶼正在浮出海面…</div>
 <div id="stage"></div>
@@ -2054,14 +2090,15 @@ function shopClick(){if(mode!=="game"||!G){toast("切換到遊戲模式，就能
 
 // ================= player card
 function gainXp(n,text){const b=lvOf(G.xp);G.xp+=n;const a=lvOf(G.xp);toast(a>b?`${text}　升到 Lv.${a}！`:text);renderPlayer()}
+var playerOpen=false;
 function renderPlayer(){const p=$("#player");if(mode!=="game"||!G){p.hidden=true;return}
   const an=animal(G.pet),lv=lvOf(G.xp),lo=XP_TH[lv-1],hi=XP_TH[lv]||lo+500,heart=nBeaten()===11;
-  p.hidden=false;p.innerHTML=`<div class="av" title="${esc(an.n)}">${card3D("avatar",an.svg,44,44)}</div><div class="nm">${esc(G.nick)} <small>Lv.${lv}</small><div class="tt">${esc(titleOf())} · 在${esc(ISL[G.at].name)}</div></div>
+  p.hidden=false;p.classList.toggle("open",!!playerOpen);p.innerHTML=`<button class="pex" id="pex" aria-label="${playerOpen?"收起角色卡":"展開角色卡"}" aria-expanded="${!!playerOpen}">${playerOpen?"▴":"▾"}</button><div class="av" title="${esc(an.n)}">${card3D("avatar",an.svg,44,44)}</div><div class="nm">${esc(G.nick)} <small>Lv.${lv}</small><div class="tt">${esc(titleOf())} · 在${esc(ISL[G.at].name)}</div></div>
    <div class="puz" title="拼圖土地">${D.islands.map(s=>`<i class="${beaten(s.id)?"on":""}"></i>`).join("")}<i class="hq${heart?" on":""}"></i></div>
    <div class="bar" title="經驗值"><i style="width:${Math.min(100,(G.xp-lo)/(hi-lo)*100)}%"></i></div>${bagHTML()}
    <div class="ft"><span>${G.xp} XP</span><span class="cn">${COIN}${G.coins||0}</span><span>拼圖 ${nBeaten()+(heart?1:0)}/12</span><button id="shopB">柑仔店</button><button id="cloudB">${CLOUD.user?"☁ 已同步":"雲端存檔"}</button><button id="reset">重新開始</button></div>`;
   $("#cloudB").addEventListener("click",()=>CLOUD.dialog());
-  $("#shopB").addEventListener("click",openShop);
+  $("#pex").addEventListener("click",()=>{playerOpen=!playerOpen;renderPlayer()});$("#shopB").addEventListener("click",openShop);
   $("#reset").addEventListener("click",()=>msg("要重新開始嗎？","<p>角色、經驗值、心得與已取得的信物都會清空，無法復原。</p>",[["清空並重來",()=>{travel=null;$("#travel").hidden=true;G=null;try{localStorage.removeItem(KEY)}catch(e){};buildAvatar();setMode("game")}],["取消",null]]))}
 
 
@@ -2123,7 +2160,7 @@ $("#crNo").addEventListener("click",()=>{$("#mCreate").hidden=true;setMode("pano
 
 // ================= modes and tools
 function msg(title,html,btns){$("#msgH").textContent=title;$("#msgB").innerHTML=html;const f=$("#msgF");f.innerHTML="";btns.forEach(([t,fn],i)=>{const b=document.createElement("button");b.className="btn"+(i?" ghost":"");b.textContent=t;b.addEventListener("click",()=>{$("#mMsg").hidden=true;fn&&fn()});f.appendChild(b)});$("#mMsg").hidden=false}
-function setMode(m,skip){if(cine)return;if(m==="game"&&!G&&!skip){openCreate();return}mode=m;$("#mPano").setAttribute("aria-pressed",m==="pano");$("#mGame").setAttribute("aria-pressed",m==="game");selId=null;openPt=null;
+function setMode(m,skip){if(cine)return;if(m==="game"&&!G&&!skip){openCreate();return}mode=m;document.body.classList.toggle("gm",m==="game");$("#mPano").setAttribute("aria-pressed",m==="pano");$("#mGame").setAttribute("aria-pressed",m==="game");selId=null;openPt=null;
   if(m==="game"&&G&&!travel){avPos.copy(idleSpot(G.at));petPos.copy(avPos)}
   refreshWorld();renderPlayer();renderPanel();if(!skip)frameAll();if(!isDesk())sheetOpen(false);if(m==="game"&&G&&!skip)setTimeout(()=>{if(G.at==="SHOP")openShop();else select(G.at,true)},400)}
 $("#mPano").addEventListener("click",()=>setMode("pano"));$("#mGame").addEventListener("click",()=>setMode("game"));

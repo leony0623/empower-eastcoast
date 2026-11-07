@@ -1,5 +1,12 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'none'; upgrade-insecure-requests">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="description" content="東海岸永續培力島：駐地研究員學習地圖與 3D 闖關遊戲">
 <title>東海岸永續培力島</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chiron+Hei+HK:wght@400;500;700;900&family=Patrick+Hand&display=swap">
 <style>
@@ -419,6 +426,12 @@ details.more-arts .pn{background:var(--gold,#E0A43A)}
 .linkb{border:0;background:none;padding:0;color:var(--sea,#1F7FA0);text-decoration:underline;font:inherit;cursor:pointer}
 .privacy dd{line-height:1.7}
 .player .ft button#cloudB{white-space:nowrap}
+.savemode{display:grid;gap:8px;border:1px solid var(--line,#e5dccb);border-radius:10px;padding:10px 12px;background:rgba(255,255,255,.6)}
+.savemode .lab{font-size:13px;color:var(--muted);font-weight:700}
+.savemode label{display:grid;grid-template-columns:20px 1fr;column-gap:6px;align-items:start;cursor:pointer}
+.savemode input{margin-top:4px}
+.savemode small{grid-column:2;font-size:12.5px;color:var(--muted);line-height:1.5}
+.savemode #crLoad{justify-self:start;font-size:13px}
 
 /* ===== test theme: soft watercolour high-fantasy (parchment, slate ink, muted teal, hairline gold) ===== */
 :root{--paper:#FFFCF5;--paper-2:#F6EFDF;--card:#FFFFFF;--ink:#22313B;--muted:#5F6B74;--line:#E7DCC4;--accent:#1F93B0;--accent-soft:#DDF2F6;--sea:#1F93B0;--gold:#E0A43A;--good:#3E9A62;--bad:#C2533F;
@@ -557,6 +570,10 @@ body,.btn,.tbtn,.pill button,.sq,.npcl,.pav,.toast{font-weight:500}
         <div class="opt"><span>隨身物</span><div class="chs" id="optCarry"></div></div>
         <div class="opt"><span>鞋子</span><div class="sw" id="optShoe"></div></div>
         <label for="role" style="font-size:13px;color:var(--muted);display:grid;gap:5px;font-weight:700">身分<select id="role"><option>新進駐地研究員</option><option>部落窗口</option><option>東管處同仁</option></select></label>
+        <div class="savemode" id="crSave" hidden><span class="lab">存檔方式</span>
+          <label><input type="radio" name="sv" value="local" checked><b>在這台裝置試玩</b><small>不用登入，進度存在這個瀏覽器。</small></label>
+          <label><input type="radio" name="sv" value="cloud"><b>用 Google 帳號雲端存檔</b><small>換手機、換電腦都能接著玩。只存遊戲進度與匿名編號，詳見<button type="button" class="linkb" data-privacy>個資與隱私聲明</button>。</small></label>
+          <button type="button" class="linkb" id="crLoad">已經有雲端進度？直接登入載入</button></div>
         <p class="warn" id="crErr" hidden></p>
         <div class="row"><button class="btn boss" id="crGo">出發，從起航島開始</button><button class="btn ghost" id="crNo">先逛全景</button></div>
       </div>
@@ -666,8 +683,18 @@ const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random(
 const animal=k=>ANIMALS.find(a=>a.k===k)||ANIMALS[0];
 
 // ================= game state & rules
-const KEY="ecPuzzleIsland.v4";
-let G=null;try{const s=localStorage.getItem(KEY);G=s?JSON.parse(s):null}catch(e){G=null}
+// saved games come from localStorage or the player's own cloud doc; validate before use so a tampered save cannot inject markup
+function cleanG(g){if(!g||typeof g!=="object"||Array.isArray(g)||typeof g.nick!=="string")return null;
+  const str=(v,n)=>typeof v==="string"?v.slice(0,n):"",num=v=>Number.isFinite(+v)?+v:0,obj=v=>v&&typeof v==="object"&&!Array.isArray(v)?v:{},ids=v=>Array.isArray(v)?v.filter(x=>Number.isFinite(x)):[];
+  const COLK=["skin","hair","top","pants","shoe","shirt","hatCol"],L={};Object.entries(obj(g.look)).forEach(([k,v])=>{if(typeof v!=="string")return;if(COLK.includes(k)){if(/^#[0-9a-fA-F]{3,8}$/.test(v))L[k]=v}else if(/^[a-z0-9-]{1,24}$/.test(v))L[k]=v});
+  const flags=v=>{const o={};Object.entries(obj(v)).forEach(([k,x])=>{if(/^[A-Za-z0-9_-]{1,12}$/.test(k))o[k]=!!x});return o};
+  const notes={};Object.entries(obj(g.notes)).forEach(([k,v])=>{if(/^\d{1,6}$/.test(k)&&typeof v==="string")notes[k]=v.slice(0,600)});
+  const items={};Object.entries(obj(g.items)).forEach(([k,v])=>{if(/^[a-z]{1,10}$/.test(k))items[k]=Math.max(0,Math.min(99,num(v)))});
+  const draw={},dd={};Object.entries(obj(g.draw)).forEach(([k,v])=>{if(/^I\d{1,2}$/.test(k))draw[k]=ids(v)});Object.entries(obj(g.dd)).forEach(([k,v])=>{if(/^I\d{1,2}$/.test(k))dd[k]=ids(v)});
+  const out=Object.assign({},g,{nick:g.nick.trim().slice(0,12)||"旅人",look:L,pet:/^[a-z]{1,16}$/.test(g.pet)?g.pet:"boar",role:str(g.role,20),xp:Math.max(0,num(g.xp)),coins:Math.max(0,num(g.coins)),items,notes,
+    done:flags(g.done),beaten:flags(g.beaten),crossed:flags(g.crossed),visited:flags(g.visited),draw,dd,at:/^(I\d{1,2}|HEART|SHOP)$/.test(g.at)?g.at:"I1",shopFrom:/^I\d{1,2}$/.test(g.shopFrom)?g.shopFrom:undefined,
+    created:str(g.created,10),certDate:g.certDate?str(g.certDate,10):undefined});return out}
+const KEY="ecPuzzleIsland.v4"; let G=null;try{const s=localStorage.getItem(KEY);G=s?cleanG(JSON.parse(s)):null}catch(e){G=null}
 if(G){if(G.coins==null)G.coins=20;if(!G.items)G.items={cut:1,hint:1,glass:1};if(G.items.time!=null){G.items.glass=(G.items.glass||0)+G.items.time;delete G.items.time}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(G))}catch(e){}if(window.__cloudQ)window.__cloudQ()}
 const XP_TH=[0,80,200,360,560,800,1080,1400,1760,2160,2600];
@@ -2039,7 +2066,7 @@ function renderPlayer(){const p=$("#player");if(mode!=="game"||!G){p.hidden=true
 
 
 // ================= optional cloud save: Google sign-in + Firestore (only when FB_CONFIG is set)
-const FB_CONFIG={"apiKey": "AIzaSyCosUz97d7lNn1lpwISzqzKYOXY4WP64Pk", "authDomain": "empower-eastcoast.firebaseapp.com", "projectId": "empower-eastcoast", "storageBucket": "empower-eastcoast.firebasestorage.app", "messagingSenderId": "1072378489390", "appId": "1:1072378489390:web:608404e49895802422cdbf"},SITE_CONTACT="";
+const FB_CONFIG={"apiKey": "AIzaSyCosUz97d7lNn1lpwISzqzKYOXY4WP64Pk", "authDomain": "empower-eastcoast.firebaseapp.com", "projectId": "empower-eastcoast", "storageBucket": "empower-eastcoast.firebasestorage.app", "messagingSenderId": "1072378489390", "appId": "1:1072378489390:web:608404e49895802422cdbf"},SITE_CONTACT="leony0623@gmail.com";
 const PRIVACY=`<div class="help privacy"><p>本網站為個人製作的非營利學習遊戲。<b>不登入也能完整遊玩</b>，此時進度只存在你自己的瀏覽器，不會傳到任何地方。</p><dl>
   <dt>蒐集目的</dt><dd>只在你選擇「雲端存檔」並以 Google 帳號登入時，用來保存與同步你的闖關進度，讓你換裝置也能接著玩。</dd>
   <dt>蒐集的資料</dt><dd>① 登入服務（Google Firebase Authentication）提供的匿名使用者編號，用來找到你的存檔；登入服務會依 Google 的規範保存你的 Google 帳號 Email，網站管理者只在帳號管理時看得到，不會另做他用。<br>② 遊戲進度：你取的暱稱、角色外觀、經驗值、金幣道具、闖關紀錄與你寫的心得，以及最後更新時間。<br>本網站<b>不蒐集</b>真實姓名、電話、地址或位置。暱稱與心得請勿填寫真實姓名或其他個人資料。</dd>
@@ -2052,17 +2079,18 @@ const CLOUD=(()=>{const on=!!FB_CONFIG;let db=null,timer=null,lastUp="",busy=fal
   const load=src=>new Promise((res,rej)=>{const s=document.createElement("script");s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s)});
   const ref=()=>db.collection("players").doc(api.user.uid);
   const sum=g=>g?`${esc(g.nick)} · Lv.${lvOf(g.xp||0)} · ${g.xp||0} XP · 信物 ${Object.keys(g.beaten||{}).length}/11`:"（沒有進度）";
-  function adopt(g){if(cine)return;travel=null;$("#travel").hidden=true;G=g;try{localStorage.setItem(KEY,JSON.stringify(G))}catch(e){}buildAvatar();avPos.copy(idleSpot(G.at));petPos.copy(avPos);lastUp=JSON.stringify(G);refreshWorld();renderPanel();renderPlayer();toast("已載入雲端進度")}
-  async function push(force){if(!api.user||!db||!G)return;const js=JSON.stringify(G);if(!force&&js===lastUp)return;if(js.length>900000){toast("進度資料太大，暫時無法上傳");return}
+  function adopt(g){if(cine)return;travel=null;$("#travel").hidden=true;$("#mCreate").hidden=true;G=g;try{localStorage.setItem(KEY,JSON.stringify(G))}catch(e){}buildAvatar();avPos.copy(idleSpot(G.at));petPos.copy(avPos);lastUp=JSON.stringify(G);if(mode!=="game")setMode("game",true);refreshWorld();renderPanel();renderPlayer();toast("已載入雲端進度")}
+  async function push(force){if(!api.user||!db||!G)return;const js=JSON.stringify(G);if(!force&&js===lastUp)return;if(js.length>180000){toast("進度資料太大，暫時無法上傳");return}
     try{await ref().set({save:js,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),v:1});lastUp=js}catch(e){console.warn(e);toast("雲端存檔失敗，稍後會再試")}}
   window.__cloudQ=()=>{if(!api.user)return;clearTimeout(timer);timer=setTimeout(()=>push(false),2500)};
-  async function pull(){try{const d=await ref().get(),cloud=d.exists?JSON.parse(d.data().save):null;
+  async function pull(){try{const d=await ref().get();let cloud=null;try{cloud=d.exists?cleanG(JSON.parse(d.data().save)):null}catch(e){cloud=null}
       if(!cloud){if(G)await push(true);return}
       if(!G){adopt(cloud);return}
       const a=JSON.stringify(G),b=JSON.stringify(cloud);if(a===b){lastUp=a;return}
       msg("要用哪一份進度？",`<p>這台裝置和雲端各有一份不同的進度：</p><p><b>雲端：</b>${sum(cloud)}<br><b>這台裝置：</b>${sum(G)}</p><p class="meta">選擇後，另一份會被覆蓋。</p>`,
         [["用雲端的進度",()=>adopt(cloud)],["用這台裝置的進度",()=>push(true).then(()=>toast("已把這台裝置的進度存到雲端"))]])}
     catch(e){console.warn(e);toast("讀取雲端存檔失敗")}}
+  api.login=()=>login();
   async function login(){if(!api.ready){toast("雲端服務載入中，請稍候再試");return}const p=new firebase.auth.GoogleAuthProvider();p.setCustomParameters({prompt:"select_account"});
     try{await firebase.auth().signInWithPopup(p)}catch(e){if(e&&/popup|operation-not-supported/.test(e.code||""))firebase.auth().signInWithRedirect(p);else{console.warn(e);toast("登入沒有完成")}}}
   async function wipe(){if(!api.user)return;try{await ref().delete()}catch(e){console.warn(e)}try{await api.user.delete()}catch(e){await firebase.auth().signOut()}lastUp="";toast("已刪除你的雲端資料並登出");renderPlayer()}
@@ -2077,7 +2105,7 @@ const CLOUD=(()=>{const on=!!FB_CONFIG;let db=null,timer=null,lastUp="",busy=fal
 
 // ================= character creator
 let LOOK=null,PET="boar";
-function openCreate(){LOOK={skin:LOOK_OPTS.skin[0],hair:LOOK_OPTS.hair[0],style:"short",top:LOOK_OPTS.top[0],pants:LOOK_OPTS.pants[0],hat:"straw",outfit:"vest",acc:"none",carry:"backpack",shoe:LOOK_OPTS.shoe[0],pattern:"none"};PET=ANIMALS[0].k;$("#nick").value=randNick();renderCreate();$("#crErr").hidden=true;$("#mCreate").hidden=false}
+function openCreate(){LOOK={skin:LOOK_OPTS.skin[0],hair:LOOK_OPTS.hair[0],style:"short",top:LOOK_OPTS.top[0],pants:LOOK_OPTS.pants[0],hat:"straw",outfit:"vest",acc:"none",carry:"backpack",shoe:LOOK_OPTS.shoe[0],pattern:"none"};PET=ANIMALS[0].k;$("#nick").value=randNick();renderCreate();$("#crErr").hidden=true;const sv=$("#crSave");sv.hidden=!CLOUD.on;if(CLOUD.on){const c=CLOUD.user?"cloud":"local";sv.querySelectorAll("input").forEach(r=>r.checked=r.value===c);$("#crLoad").hidden=!!CLOUD.user}$("#mCreate").hidden=false}
 function renderCreate(){$("#pvAv").innerHTML=card3D("look",avatarSVG(LOOK,150),176,214)+`<span class="meta" style="display:block;text-align:center">拖曳可以旋轉</span>`;$("#pvPet").innerHTML=card3D("pet:"+PET,animal(PET).svg,64,64);$("#pvNm").textContent=$("#nick").value||"（暱稱）";$("#pvRole").textContent=`${$("#role").value} · 夥伴：${animal(PET).n}`;
   const sw=(id,key)=>{$(id).innerHTML=LOOK_OPTS[key].map(c=>`<button type="button" data-k="${key}" data-v="${c}" style="background:${c}" aria-pressed="${LOOK[key]===c}" aria-label="${c}"></button>`).join("")};
   const ch=(id,key,opts)=>{$(id).innerHTML=opts.map(([v,t])=>`<button type="button" data-k="${key}" data-v="${v}" aria-pressed="${LOOK[key]===v}">${t}</button>`).join("")};
@@ -2086,7 +2114,9 @@ function renderCreate(){$("#pvAv").innerHTML=card3D("look",avatarSVG(LOOK,150),1
 $("#mCreate").addEventListener("click",e=>{const b=e.target.closest("[data-k]");if(b){LOOK[b.dataset.k]=b.dataset.v;renderCreate();return}const p=e.target.closest("[data-pet]");if(p){PET=p.dataset.pet;renderCreate()}});
 $("#nick").addEventListener("input",()=>{$("#pvNm").textContent=$("#nick").value||"（暱稱）"});$("#role").addEventListener("change",renderCreate);
 $("#nickR").addEventListener("click",()=>{$("#nick").value=randNick();renderCreate()});
+$("#crLoad").addEventListener("click",()=>CLOUD.login());
 $("#crGo").addEventListener("click",()=>{const n=$("#nick").value.trim();if(n.length<2||n.length>10){$("#crErr").textContent="暱稱需要 2 到 10 個字。";$("#crErr").hidden=false;return}
+  const wantCloud=CLOUD.on&&!CLOUD.user&&(document.querySelector('#crSave input[name="sv"]:checked')||{}).value==="cloud";if(wantCloud)CLOUD.login();
   G={nick:n,look:LOOK,pet:PET,role:$("#role").value,xp:0,coins:20,items:{cut:1,hint:1,glass:1},done:{},notes:{},beaten:{},crossed:{},visited:{I1:true},at:"I1",created:new Date().toISOString().slice(0,10)};save();$("#mCreate").hidden=true;
   buildAvatar();avPos.copy(idleSpot("I1"));petPos.copy(avPos);setMode("game",true);setTimeout(()=>{select("I1",true);toast(`歡迎，${n}！${animal(PET).n}陪你從起航島出發`)},400)});
 $("#crNo").addEventListener("click",()=>{$("#mCreate").hidden=true;setMode("pano")});
@@ -2164,3 +2194,4 @@ todButtons();autoTod(true);if(RM){$("#tPause").setAttribute("aria-pressed","true
 if(G){if(G.at==="SHOP"){G.at=G.shopFrom||"I1";save()}buildAvatar();avPos.copy(idleSpot(G.at));petPos.copy(avPos)}
 refreshWorld();renderPanel();renderPlayer();if(isDesk())sheetOpen(true);$("#boot").hidden=true;loop();
 </script>
+
